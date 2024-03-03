@@ -14,6 +14,8 @@ builder.Services
             .WithSecurity(MessagePackSecurity.UntrustedData);
     });
 
+builder.Services.AddSingleton<RelayMasterDetailDocumentClient>();
+
 // start the server at port 5200 and make the hub accessible at URL /ws/chat
 var app = builder.Build();
 app.Urls.Add("http://localhost:5300");

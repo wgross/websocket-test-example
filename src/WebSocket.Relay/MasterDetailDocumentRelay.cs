@@ -19,6 +19,8 @@ public class MasterDetailDocumentRelay(IHubContext<MasterDetailProtocolHub, IMas
 
     public IEnumerable<string> KnownConnections => this.connectionId2protocolInstance.Keys;
 
+    public IEnumerable<string> KnownDocumentIds => this.documentId2connectionId.Keys;
+
     public void RemoveProtocolInstance(string connectionId)
     {
         this.connectionId2protocolInstance.Remove(connectionId, out _);

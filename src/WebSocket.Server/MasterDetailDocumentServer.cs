@@ -45,11 +45,12 @@ public class MasterDetailDocumentServer
     public async Task SetDocumentId(DocumentId documentId, WebSocket.Server.MasterDetailDocument document)
     {
         this.document = document;
-        await this.connection.SendAsync(nameof(IMasterDetailDocumentProtocol.SetDocumentId), documentId);
+        await this.connection.InvokeAsync(nameof(IMasterDetailDocumentProtocol.SetDocumentId), documentId);
     }
 
     public async Task StopAsync()
     {
         await this.connection.StopAsync();
+        await this.connection.DisposeAsync();
     }
 }

@@ -6,16 +6,16 @@ using WebSocket.Server;
 namespace WebSocket.IntegTest;
 
 [Collection(nameof(WebSocketTestCollection))]
-public class WebSocketTest :  IAsyncDisposable
+public class WebRelay2ServerSocketTest : IAsyncDisposable
 {
     private readonly WebSocketTestFixture fixture;
     private readonly MasterDetailDocumentServer server;
-    private readonly MasterDetailDocumentClient client;
+    private readonly RelayMasterDetailDocumentClient client;
     private readonly string testDocumentId;
 
     private readonly MasterDetailDocument testDocument;
 
-    public WebSocketTest(WebSocketTestFixture fixture)
+    public WebRelay2ServerSocketTest(WebSocketTestFixture fixture)
     {
         this.fixture = fixture;
 
@@ -41,12 +41,7 @@ public class WebSocketTest :  IAsyncDisposable
             .AddMessagePackProtocol()
             .Build());
 
-        this.client = new MasterDetailDocumentClient(new HubConnectionBuilder()
-            .WithUrl(
-                url: $"http://localhost:5300/ws/chat",
-                configureHttpConnection: c => c.HttpMessageHandlerFactory = _ => this.fixture.CreateHandler())
-            .AddMessagePackProtocol()
-            .Build());
+        this.client = this.fixture.Services.GetRequiredService<RelayMasterDetailDocumentClient>();
     }
 
     public async ValueTask DisposeAsync()
@@ -69,38 +64,39 @@ public class WebSocketTest :  IAsyncDisposable
         // ACT
         await this.server.StopAsync();
 
-        // ASSERT  
+        // ASSERT
         Assert.Equal(connectionsBefore, relay.KnownConnections);
+        Assert.Equal(connectionsBefore.Length + 1, connectionsAfter.Length);
     }
 
     [Fact]
-    public async Task Client_connects_and_disconnects_from_relay()
+    public async Task Server_publishes_documentId()
     {
         // ARRANGE
         var relay = this.fixture.Services.GetRequiredService<MasterDetailDocumentRelay>();
 
         var connectionsBefore = relay.KnownConnections.ToArray();
 
-        await this.client.StartAsync();
+        await this.server.StartAsync();
 
         var connectionsAfter = relay.KnownConnections.ToArray();
 
         // ACT
-        await this.client.StopAsync();
+        await this.server.SetDocumentId(new DocumentId { Id = this.testDocumentId }, this.testDocument);
 
         // ASSERT
-        Assert.Equal(connectionsAfter.Length-1, relay.KnownConnections.Count());
-        Assert.Equal(connectionsBefore, relay.KnownConnections);
+        var result = relay.KnownDocumentIds.ToArray();
+
+        // ASSERT
+        Assert.Contains(this.testDocumentId, result);
     }
 
     [Fact]
-    public async Task Client_reads_document_items()
+    public async Task Relay_reads_document_items()
     {
         // ARRANGE
         await this.server.StartAsync();
         await this.server.SetDocumentId(new DocumentId { Id = this.testDocumentId }, this.testDocument);
-
-        await this.client.StartAsync();
 
         // ACT
         var result = await this.client.GetDocumentItems(this.testDocumentId);
@@ -109,18 +105,14 @@ public class WebSocketTest :  IAsyncDisposable
         Assert.NotNull(result);
         Assert.Equal(["name1", "name2"], result.Items.Select(i => i.Name));
         Assert.Equal([1, 2], result.Items.Select(i => i.Number));
-
-        var relay = this.fixture.Services.GetRequiredService<MasterDetailDocumentRelay>();
     }
 
     [Fact]
-    public async Task Client_reads_document_item_details()
+    public async Task Relay_reads_document_item_details()
     {
         // ARRANGE
         await this.server.StartAsync();
         await this.server.SetDocumentId(new DocumentId { Id = this.testDocumentId }, this.testDocument);
-
-        await this.client.StartAsync();
 
         // ACT
         var result = await this.client.GetDocumentItemDetails(this.testDocumentId, new DocumentItem { Number = 1, Name = "name1" });
@@ -133,16 +125,14 @@ public class WebSocketTest :  IAsyncDisposable
     }
 
     [Fact]
-    public async Task Client_set_document_item_details_value()
+    public async Task Relay_set_document_item_details_value()
     {
         // ARRANGE
         await this.server.StartAsync();
         await this.server.SetDocumentId(new DocumentId { Id = this.testDocumentId }, this.testDocument);
 
-        await this.client.StartAsync();
-
         // ACT
-        await this.client.SetDocumentItemValue(this.testDocumentId, new DocumentItem { Number = 1, Name = "name1" }, "new");
+        await this.client.SetDocumentItemValue(testDocumentId, new DocumentItem { Number = 1, Name = "name1" }, "new");
 
         var result = await this.client.GetDocumentItemValue(testDocumentId, new DocumentItem { Number = 1, Name = "name1" });
 
